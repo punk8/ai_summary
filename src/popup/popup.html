@@ -7,18 +7,25 @@
 <body>
   <div class="container">
     <h1>AI 内容总结</h1>
-    <div id="loading" class="hidden">
-      <span class="loader"></span>
+    
+    <button id="summarize">开始总结</button>
+
+    <div id="loading" class="loading hidden">
+      <div class="loader"></div>
       <p>正在分析内容...</p>
     </div>
-    <div id="content">
-      <button id="summarize">开始总结</button>
-      <div id="result" class="hidden">
-        <h2>总结结果：</h2>
-        <div id="summary"></div>
+
+    <div id="result" class="result hidden">
+      <h2>总结结果</h2>
+      <div id="summary"></div>
+      <div class="toolbar">
+        <button id="copy">复制</button>
+        <button id="share">分享</button>
+        <button id="translate">翻译</button>
       </div>
     </div>
   </div>
+  <script src="../services/aiService.js"></script>
   <script src="popup.js"></script>
 </body>
 </html> 

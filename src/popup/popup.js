@@ -4,12 +4,18 @@ class PopupManager {
     this.loadingElement = document.getElementById('loading');
     this.resultElement = document.getElementById('result');
     this.summaryElement = document.getElementById('summary');
+    this.copyBtn = document.getElementById('copy');
+    this.shareBtn = document.getElementById('share');
+    this.translateBtn = document.getElementById('translate');
     
     this.init();
   }
 
   init() {
     this.summarizeBtn.addEventListener('click', () => this.handleSummarize());
+    this.copyBtn.addEventListener('click', () => this.handleCopy());
+    this.shareBtn.addEventListener('click', () => this.handleShare());
+    this.translateBtn.addEventListener('click', () => this.handleTranslate());
   }
 
   async handleSummarize() {
@@ -19,59 +25,116 @@ class PopupManager {
       // 获取当前活动标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
-      // 先检查标签页是否可以访问
+      // 检查页面是否可访问
       if (!tab.url || tab.url.startsWith('chrome://')) {
         throw new Error('无法在此页面使用');
       }
 
-      // 等待一小段时间确保内容脚本已加载
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 尝试发送消息
-      try {
-        const response = await chrome.tabs.sendMessage(tab.id, {
-          action: 'extractContent'
-        });
-
-        if (!response || !response.success) {
-          throw new Error(response?.error || '内容提取失败');
-        }
-
-        // 显示提取的内容
-        this.showResult(response.data.excerpt || response.data.content.substring(0, 200) + '...');
-      } catch (error) {
-        // 如果发送消息失败，可能需要重新注入内容脚本
-        console.error('First attempt failed, trying to reinject content script...');
-        
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: [
-            'lib/readability.js',
-            'src/content/extractors/generalExtractor.js',
-            'src/content/extractors/youtubeExtractor.js',
-            'src/content/contentScript.js'
-          ]
-        });
-
-        // 再次等待一小段时间
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // 重试发送消息
-        const retryResponse = await chrome.tabs.sendMessage(tab.id, {
-          action: 'extractContent'
-        });
-
-        if (!retryResponse || !retryResponse.success) {
-          throw new Error(retryResponse?.error || '内容提取失败');
-        }
-
-        this.showResult(retryResponse.data.excerpt || retryResponse.data.content.substring(0, 200) + '...');
+      // 获取存储的设置
+      const settings = await chrome.storage.sync.get(['apiKey', 'language']);
+      if (!settings.apiKey) {
+        throw new Error('请先在设置中配置 API Key');
       }
+
+      // 提取页面内容
+      const content = await this.extractContent(tab);
+      
+      // 调用 AI 服务进行总结
+      const summary = await AiService.summarize(content.data.content, {
+        apiKey: settings.apiKey,
+        language: settings.language || 'zh-CN'
+      });
+
+      this.showResult(summary);
       
     } catch (error) {
       this.showError(error.message);
     } finally {
       this.hideLoading();
+    }
+  }
+
+  async extractContent(tab) {
+    try {
+      // 注入内容脚本
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: [
+          'lib/readability.js',
+          'src/content/extractors/generalExtractor.js',
+          'src/content/extractors/youtubeExtractor.js',
+          'src/content/contentScript.js'
+        ]
+      });
+
+      // 等待内容脚本加载
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 提取内容
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: 'extractContent'
+      });
+
+      if (!response || !response.success) {
+        throw new Error(response?.error || '内容提取失败');
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Content extraction failed:', error);
+      throw error;
+    }
+  }
+
+  async handleCopy() {
+    try {
+      const text = this.summaryElement.textContent;
+      await navigator.clipboard.writeText(text);
+      this.showToast('已复制到剪贴板');
+    } catch (error) {
+      this.showToast('复制失败', 'error');
+    }
+  }
+
+  async handleShare() {
+    try {
+      const text = this.summaryElement.textContent;
+      if (navigator.share) {
+        await navigator.share({
+          title: '内容总结',
+          text: text
+        });
+      } else {
+        throw new Error('您的浏览器不支持分享功能');
+      }
+    } catch (error) {
+      this.showToast(error.message, 'error');
+    }
+  }
+
+  async handleTranslate() {
+    try {
+      const text = this.summaryElement.textContent;
+      const settings = await chrome.storage.sync.get(['apiKey']);
+      
+      if (!settings.apiKey) {
+        throw new Error('请先在设置中配置 API Key');
+      }
+
+      this.translateBtn.disabled = true;
+      
+      // 调用 AI 服务进行翻译
+      const translated = await AiService.summarize(text, {
+        apiKey: settings.apiKey,
+        language: 'en', // 默认翻译为英文
+        maxLength: text.length
+      });
+
+      this.showResult(translated);
+    } catch (error) {
+      this.showToast(error.message, 'error');
+    } finally {
+      this.translateBtn.disabled = false;
     }
   }
 
@@ -94,6 +157,19 @@ class PopupManager {
   showError(message) {
     this.summaryElement.textContent = `错误：${message}`;
     this.resultElement.classList.remove('hidden');
+  }
+
+  showToast(message, type = 'success') {
+    // 创建 toast 元素
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // 2秒后移除
+    setTimeout(() => {
+      toast.remove();
+    }, 2000);
   }
 }
 
