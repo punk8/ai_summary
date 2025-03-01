@@ -8,11 +8,21 @@
 <body>
   <div class="container">
     <h1>设置</h1>
+    
     <div class="form-group">
-      <label for="apiKey">OpenAI API Key:</label>
-      <input type="password" id="apiKey" placeholder="sk-...">
-      <button id="save">保存</button>
+      <label for="modelType">AI 模型选择:</label>
+      <select id="modelType">
+        <option value="openai">OpenAI (GPT-3.5/4)</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
     </div>
+
+    <!-- 动态模型设置容器 -->
+    <div id="modelSettings">
+      <!-- 模型特定的设置将动态插入这里 -->
+    </div>
+
     <div class="form-group">
       <label for="language">默认总结语言:</label>
       <select id="language">
@@ -21,8 +31,13 @@
         <option value="ja">日本語</option>
       </select>
     </div>
+
+    <button id="save">保存设置</button>
     <div id="status"></div>
   </div>
+  <script src="../services/index.js"></script>
+  <script src="../services/models/openai.js"></script>
+  <script src="../services/models/deepseek.js"></script>
   <script src="options.js"></script>
 </body>
 </html> 

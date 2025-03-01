@@ -1,11 +1,41 @@
 class AiService {
-  static API_URL = 'https://api.openai.com/v1/chat/completions';
-  
   static async summarize(content, options = {}) {
     const {
+      modelType = 'openai',
+      apiKey,
       maxLength = 500,
       language = 'zh-CN',
-      apiKey = '' // 从配置中获取
+      ...modelOptions
+    } = options;
+
+    console.log('AiService.summarize called with:', {
+      modelType,
+      maxLength,
+      language,
+      modelOptions
+    });
+
+    if (!apiKey) {
+      throw new Error('请先配置 API Key');
+    }
+
+    try {
+      const adapter = AISummary.ModelFactory.createAdapter(modelType, apiKey, modelOptions);
+      const result = await adapter.summarize(content, { language, maxLength });
+      console.log('Summarization result:', result);
+      return result;
+    } catch (error) {
+      console.error('Summarization failed:', error);
+      throw error;
+    }
+  }
+
+  static async translate(content, options = {}) {
+    const {
+      modelType = 'openai',
+      apiKey,
+      targetLanguage = 'en',
+      ...modelOptions
     } = options;
 
     if (!apiKey) {
@@ -13,36 +43,14 @@ class AiService {
     }
 
     try {
-      const response = await fetch(this.API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: `你是一个文章总结助手。请用${language}简洁地总结以下内容，突出重点。总结字数限制在${maxLength}字以内。`
-            },
-            {
-              role: "user",
-              content: content
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('AI API 请求失败');
-      }
-
-      const data = await response.json();
-      return data.choices[0].message.content;
+      const adapter = ModelFactory.createAdapter(modelType, apiKey, modelOptions);
+      return await adapter.translate(content, targetLanguage);
     } catch (error) {
-      console.error('AI summarization failed:', error);
+      console.error('Translation failed:', error);
       throw error;
     }
   }
-} 
+}
+
+// 添加到全局命名空间
+window.AISummary.AiService = AiService; 

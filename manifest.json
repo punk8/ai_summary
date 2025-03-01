@@ -29,8 +29,10 @@
       "matches": ["<all_urls>"],
       "js": [
         "lib/readability.js",
-        "src/content/extractors/generalExtractor.js",
-        "src/content/extractors/youtubeExtractor.js",
+        "src/services/index.js",
+        "src/services/models/openai.js",
+        "src/services/models/deepseek.js",
+        "src/services/aiService.js",
         "src/content/contentScript.js"
       ],
       "css": ["assets/css/content.css"]

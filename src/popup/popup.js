@@ -1,3 +1,8 @@
+// 确保 AISummary 已经加载
+if (typeof AISummary === 'undefined') {
+  throw new Error('AISummary namespace is not loaded');
+}
+
 class PopupManager {
   constructor() {
     this.summarizeBtn = document.getElementById('summarize');
@@ -12,6 +17,7 @@ class PopupManager {
   }
 
   init() {
+    console.log('PopupManager initializing...');
     this.summarizeBtn.addEventListener('click', () => this.handleSummarize());
     this.copyBtn.addEventListener('click', () => this.handleCopy());
     this.shareBtn.addEventListener('click', () => this.handleShare());
@@ -20,6 +26,7 @@ class PopupManager {
 
   async handleSummarize() {
     try {
+      console.log('Starting summarization...');
       this.showLoading();
       
       // 获取当前活动标签页
@@ -31,23 +38,41 @@ class PopupManager {
       }
 
       // 获取存储的设置
-      const settings = await chrome.storage.sync.get(['apiKey', 'language']);
-      if (!settings.apiKey) {
+      const settings = await chrome.storage.sync.get([
+        'modelType',
+        'openaiKey',
+        'deepseekKey',
+        'openaiModel',
+        'deepseekModel',
+        'language'
+      ]);
+
+      console.log('Settings loaded:', settings);
+
+      // 根据选择的模型类型获取对应的 API Key
+      const apiKey = settings.modelType === 'openai' ? settings.openaiKey : settings.deepseekKey;
+      if (!apiKey) {
         throw new Error('请先在设置中配置 API Key');
       }
 
       // 提取页面内容
+      console.log('Extracting content from page...');
       const content = await this.extractContent(tab);
-      
+      console.log('Content extracted:', content);
+
       // 调用 AI 服务进行总结
-      const summary = await AiService.summarize(content.data.content, {
-        apiKey: settings.apiKey,
+      const summary = await AISummary.AiService.summarize(content.data.content, {
+        modelType: settings.modelType,
+        apiKey: apiKey,
+        model: settings.modelType === 'openai' ? settings.openaiModel : settings.deepseekModel,
         language: settings.language || 'zh-CN'
       });
 
+      console.log('Summary generated:', summary);
       this.showResult(summary);
       
     } catch (error) {
+      console.error('Summarization error:', error);
       this.showError(error.message);
     } finally {
       this.hideLoading();
@@ -56,33 +81,52 @@ class PopupManager {
 
   async extractContent(tab) {
     try {
-      // 注入内容脚本
+      console.log('Injecting content scripts...');
+      
+      // 注入所有必要的脚本
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: [
-          'lib/readability.js',
-          'src/content/extractors/generalExtractor.js',
-          'src/content/extractors/youtubeExtractor.js',
-          'src/content/contentScript.js'
-        ]
+        function: () => {
+          // 创建一个全局的内容提取器对象
+          window.contentExtractor = {
+            extract: function() {
+              // 使用 Readability 提取内容
+              let documentClone = document.cloneNode(true);
+              let article = new Readability(documentClone).parse();
+              
+              return {
+                success: true,
+                data: {
+                  title: article.title,
+                  content: article.textContent,
+                  excerpt: article.excerpt,
+                  length: article.textContent.length
+                }
+              };
+            }
+          };
+        }
       });
 
-      // 等待内容脚本加载
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 提取内容
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        action: 'extractContent'
+      // 执行内容提取
+      console.log('Extracting content...');
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        function: () => {
+          return window.contentExtractor.extract();
+        }
       });
 
-      if (!response || !response.success) {
-        throw new Error(response?.error || '内容提取失败');
+      console.log('Content extracted:', result);
+
+      if (!result || !result.success) {
+        throw new Error(result?.error || '内容提取失败');
       }
 
-      return response;
+      return result;
     } catch (error) {
       console.error('Content extraction failed:', error);
-      throw error;
+      throw new Error(`内容提取失败: ${error.message}`);
     }
   }
 
@@ -115,18 +159,19 @@ class PopupManager {
   async handleTranslate() {
     try {
       const text = this.summaryElement.textContent;
-      const settings = await chrome.storage.sync.get(['apiKey']);
+      const settings = await chrome.storage.sync.get(['modelType', 'openaiKey', 'deepseekKey']);
       
-      if (!settings.apiKey) {
+      const apiKey = settings.modelType === 'openai' ? settings.openaiKey : settings.deepseekKey;
+      if (!apiKey) {
         throw new Error('请先在设置中配置 API Key');
       }
 
       this.translateBtn.disabled = true;
       
-      // 调用 AI 服务进行翻译
-      const translated = await AiService.summarize(text, {
-        apiKey: settings.apiKey,
-        language: 'en', // 默认翻译为英文
+      const translated = await AISummary.AiService.summarize(text, {
+        modelType: settings.modelType,
+        apiKey: apiKey,
+        language: 'en',
         maxLength: text.length
       });
 
@@ -160,13 +205,11 @@ class PopupManager {
   }
 
   showToast(message, type = 'success') {
-    // 创建 toast 元素
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    // 2秒后移除
     setTimeout(() => {
       toast.remove();
     }, 2000);
@@ -175,5 +218,6 @@ class PopupManager {
 
 // 初始化弹出窗口管理器
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Popup DOM loaded');
   new PopupManager();
 }); 
