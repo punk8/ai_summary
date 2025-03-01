@@ -39,9 +39,6 @@ class SidePanelManager {
       if (this.isProcessing) return;
       this.isProcessing = true;
       
-      console.log('Starting summarization...');
-      
-      // 获取当前活动标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
       if (!tab.url || tab.url.startsWith('chrome://')) {
@@ -62,18 +59,18 @@ class SidePanelManager {
         throw new Error('请先在设置中配置 API Key');
       }
 
-      // 创建新的 AbortController
-      this.abortController = new AbortController();
       this.showLoading();
+      this.abortController = new AbortController();
 
       const content = await this.extractContent(tab);
-      
-      // 检查是否已经取消
-      if (this.abortController === null) {
-        throw new Error('已取消总结');
-      }
+      console.log('Content extracted:', content);
 
-      const summary = await AISummary.AiService.summarize(content.data.content, {
+      // 根据内容类型调整提示词
+      const prompt = content.data.isYouTube 
+        ? `这是一个YouTube视频的字幕内容，请总结视频的主要内容：\n${content.data.content}`
+        : content.data.content;
+
+      const summary = await AISummary.AiService.summarize(prompt, {
         modelType: settings.modelType,
         apiKey: apiKey,
         model: settings.modelType === 'openai' ? settings.openaiModel : settings.deepseekModel,
@@ -81,15 +78,10 @@ class SidePanelManager {
         signal: this.abortController.signal
       });
 
-      // 再次检查是否已经取消
-      if (this.abortController === null) {
-        throw new Error('已取消总结');
-      }
-
       this.showResult(summary);
       
     } catch (error) {
-      if (error.name === 'AbortError' || error.message === '已取消总结') {
+      if (error.name === 'AbortError') {
         console.log('Summary cancelled by user');
         this.showError('已取消总结');
       } else {
@@ -105,16 +97,29 @@ class SidePanelManager {
 
   async extractContent(tab) {
     try {
-      console.log('Injecting content scripts...');
+      console.log('Extracting content from:', tab.url);
       
-      // 注入 Readability 库
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['lib/readability.js']
-      });
+      // 检查是否是 YouTube 视频
+      if (await YouTubeService.isYouTubeVideo(tab.url)) {
+        console.log('Detected YouTube video');
+        const videoId = await YouTubeService.getVideoId(tab.url);
+        if (!videoId) throw new Error('无法获取视频ID');
 
-      // 执行内容提取
-      console.log('Extracting content...');
+        const transcriptData = await YouTubeService.fetchTranscript(videoId, tab.id);
+        
+        return {
+          success: true,
+          data: {
+            title: tab.title,
+            content: transcriptData.transcript,
+            isYouTube: true,
+            language: transcriptData.language
+          }
+        };
+      }
+
+      // 非 YouTube 视频使用原有的提取方法
+      console.log('Extracting content using Readability...');
       const [{ result }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         function: () => {
@@ -128,7 +133,8 @@ class SidePanelManager {
                 title: article.title,
                 content: article.textContent,
                 excerpt: article.excerpt,
-                length: article.textContent.length
+                length: article.textContent.length,
+                isYouTube: false
               }
             };
           } catch (error) {
@@ -140,8 +146,6 @@ class SidePanelManager {
           }
         }
       });
-
-      console.log('Content extracted:', result);
 
       if (!result || !result.success) {
         throw new Error(result?.error || '内容提取失败');

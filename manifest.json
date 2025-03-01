@@ -15,7 +15,8 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "*://*.youtube.com/*"
   ],
   "action": {
     "default_icon": {
