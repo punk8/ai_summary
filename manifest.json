@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "AI Content Summarizer",
+  "description": "使用AI智能总结网页内容",
+  "version": "1.0",
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "lib/readability.js",
+        "src/content/extractors/generalExtractor.js",
+        "src/content/extractors/youtubeExtractor.js",
+        "src/content/contentScript.js"
+      ],
+      "css": ["assets/css/content.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "src/background/background.js"
+  }
+}
