@@ -237,4 +237,148 @@ body {
   .tool-button:hover, .primary-button:hover {
     background: rgba(79, 70, 229, 0.3);
   }
+}
+
+/* 修改 button-group 样式 */
+.button-group {
+  position: relative;
+  margin-bottom: 16px;
+  height: 45px; /* 设置固定高度，与按钮高度匹配 */
+}
+
+.button-group .primary-button,
+.button-group .cancel-button {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  transition: all 0.3s ease;
+}
+
+.button-group .primary-button {
+  z-index: 1;
+}
+
+.button-group .cancel-button {
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-5px);
+}
+
+.button-group .cancel-button.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.button-group .primary-button[disabled] {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(5px);
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.cancel-button {
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(239, 68, 68);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cancel-button:hover {
+  background: rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
+}
+
+.cancel-button svg {
+  fill: currentColor;
+}
+
+/* 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .cancel-button {
+    background: rgba(239, 68, 68, 0.2);
+  }
+  
+  .cancel-button:hover {
+    background: rgba(239, 68, 68, 0.3);
+  }
+}
+
+/* Toast 样式 */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+}
+
+.toast {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.success {
+  background: rgba(34, 197, 94, 0.9);
+}
+
+.toast.error {
+  background: rgba(239, 68, 68, 0.9);
+}
+
+.toast svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .toast {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  
+  .toast.success {
+    background: rgba(34, 197, 94, 0.8);
+  }
+  
+  .toast.error {
+    background: rgba(239, 68, 68, 0.8);
+  }
 } 

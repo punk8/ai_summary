@@ -6,6 +6,7 @@ if (typeof AISummary === 'undefined') {
 class SidePanelManager {
   constructor() {
     this.summarizeBtn = document.getElementById('summarize');
+    this.cancelBtn = document.getElementById('cancel');
     this.loadingElement = document.getElementById('loading');
     this.resultElement = document.getElementById('result');
     this.summaryElement = document.getElementById('summary');
@@ -14,23 +15,31 @@ class SidePanelManager {
     this.translateBtn = document.getElementById('translate');
     this.settingsBtn = document.getElementById('settings');
     
+    // 添加取消请求的控制器
+    this.abortController = null;
+    this.isProcessing = false;
+    
+    this.toastContainer = document.getElementById('toast-container');
+    
     this.init();
   }
 
   init() {
     console.log('SidePanelManager initializing...');
     this.summarizeBtn.addEventListener('click', () => this.handleSummarize());
+    this.cancelBtn.addEventListener('click', () => this.handleCancel());
     this.copyBtn.addEventListener('click', () => this.handleCopy());
     this.shareBtn.addEventListener('click', () => this.handleShare());
     this.translateBtn.addEventListener('click', () => this.handleTranslate());
     this.settingsBtn.addEventListener('click', () => this.handleSettings());
   }
 
-  // 复用 PopupManager 中的大部分方法，但做一些适应性修改
   async handleSummarize() {
     try {
+      if (this.isProcessing) return;
+      this.isProcessing = true;
+      
       console.log('Starting summarization...');
-      this.showLoading();
       
       // 获取当前活动标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -48,36 +57,52 @@ class SidePanelManager {
         'language'
       ]);
 
-      console.log('Settings loaded:', settings);
-
       const apiKey = settings.modelType === 'openai' ? settings.openaiKey : settings.deepseekKey;
       if (!apiKey) {
         throw new Error('请先在设置中配置 API Key');
       }
 
-      console.log('Extracting content from page...');
+      // 创建新的 AbortController
+      this.abortController = new AbortController();
+      this.showLoading();
+
       const content = await this.extractContent(tab);
-      console.log('Content extracted:', content);
+      
+      // 检查是否已经取消
+      if (this.abortController === null) {
+        throw new Error('已取消总结');
+      }
 
       const summary = await AISummary.AiService.summarize(content.data.content, {
         modelType: settings.modelType,
         apiKey: apiKey,
         model: settings.modelType === 'openai' ? settings.openaiModel : settings.deepseekModel,
-        language: settings.language || 'zh-CN'
+        language: settings.language || 'zh-CN',
+        signal: this.abortController.signal
       });
 
-      console.log('Summary generated:', summary);
+      // 再次检查是否已经取消
+      if (this.abortController === null) {
+        throw new Error('已取消总结');
+      }
+
       this.showResult(summary);
       
     } catch (error) {
-      console.error('Summarization error:', error);
-      this.showError(error.message);
+      if (error.name === 'AbortError' || error.message === '已取消总结') {
+        console.log('Summary cancelled by user');
+        this.showError('已取消总结');
+      } else {
+        console.error('Summarization error:', error);
+        this.showError(error.message);
+      }
     } finally {
+      this.isProcessing = false;
+      this.abortController = null;
       this.hideLoading();
     }
   }
 
-  // 其他方法与 PopupManager 相同，只需复制过来
   async extractContent(tab) {
     try {
       console.log('Injecting content scripts...');
@@ -133,8 +158,9 @@ class SidePanelManager {
     try {
       const text = this.summaryElement.textContent;
       await navigator.clipboard.writeText(text);
-      this.showToast('已复制到剪贴板');
+      this.showToast('复制成功', 'success');
     } catch (error) {
+      console.error('Copy failed:', error);
       this.showToast('复制失败', 'error');
     }
   }
@@ -186,14 +212,35 @@ class SidePanelManager {
     chrome.runtime.openOptionsPage();
   }
 
+  handleCancel() {
+    console.log('Cancelling summary...');
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+      this.isProcessing = false;
+      this.hideLoading();
+      this.showError('已取消总结');
+    }
+  }
+
   showLoading() {
     this.summarizeBtn.disabled = true;
+    this.summarizeBtn.style.opacity = '0';
+    this.cancelBtn.classList.remove('hidden');
+    setTimeout(() => {
+      this.cancelBtn.classList.add('visible');
+    }, 10);
     this.loadingElement.classList.remove('hidden');
     this.resultElement.classList.add('hidden');
   }
 
   hideLoading() {
     this.summarizeBtn.disabled = false;
+    this.summarizeBtn.style.opacity = '1';
+    this.cancelBtn.classList.remove('visible');
+    setTimeout(() => {
+      this.cancelBtn.classList.add('hidden');
+    }, 300);
     this.loadingElement.classList.add('hidden');
   }
 
@@ -218,18 +265,43 @@ class SidePanelManager {
   }
 
   showError(message) {
-    this.summaryElement.textContent = `错误：${message}`;
+    this.hideLoading(); // 先隐藏加载状态和取消按钮
+    this.summaryElement.innerHTML = `
+      <div class="error-message">
+        <span class="error-icon">⚠️</span>
+        <span>${message}</span>
+      </div>
+    `;
     this.resultElement.classList.remove('hidden');
   }
 
   showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
+    
+    // 添加图标
+    const icon = type === 'success' 
+      ? '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>'
+      : '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
+    
+    toast.innerHTML = `
+      ${icon}
+      <span>${message}</span>
+    `;
+    
+    this.toastContainer.appendChild(toast);
+    
+    // 触发重排以启动动画
     setTimeout(() => {
-      toast.remove();
+      toast.classList.add('show');
+    }, 10);
+
+    // 2秒后移除 toast
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        this.toastContainer.removeChild(toast);
+      }, 300);
     }, 2000);
   }
 }

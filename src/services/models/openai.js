@@ -6,7 +6,26 @@ if (typeof AISummary === 'undefined') {
 class OpenAIAdapter extends AISummary.BaseModelAdapter {
   static API_URL = 'https://api.openai.com/v1/chat/completions';
   
-  async summarize(content, { language = 'zh-CN', maxLength = 500 } = {}) {
+  async makeRequest(url, data) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(data),
+      signal: data.signal
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || '请求失败');
+    }
+
+    return await response.json();
+  }
+
+  async summarize(content, { language = 'zh-CN', maxLength = 500, signal } = {}) {
     console.log('OpenAI summarize called with:', { language, maxLength });
     
     const data = {
@@ -28,7 +47,8 @@ class OpenAIAdapter extends AISummary.BaseModelAdapter {
           role: "user",
           content: content
         }
-      ]
+      ],
+      signal
     };
 
     const response = await this.makeRequest(OpenAIAdapter.API_URL, data);
