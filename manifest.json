@@ -11,18 +11,25 @@
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "scripting",
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "action": {
-    "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "assets/icons/icon16.png",
       "48": "assets/icons/icon48.png",
       "128": "assets/icons/icon128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
   },
   "content_scripts": [
     {
@@ -38,8 +45,16 @@
       "css": ["assets/css/content.css"]
     }
   ],
-  "background": {
-    "service_worker": "src/background/background.js"
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "打开 AI 总结侧边栏"
+    }
   },
-  "options_page": "src/options/options.html"
+  "background": {
+    "service_worker": "src/background.js"
+  }
 }
