@@ -198,7 +198,22 @@ class SidePanelManager {
   }
 
   showResult(summary) {
-    this.summaryElement.textContent = summary;
+    // 配置 marked 选项
+    marked.setOptions({
+      gfm: true, // 启用 GitHub 风格的 Markdown
+      breaks: true, // 允许回车换行
+      sanitize: true, // 消毒 HTML 标签
+      smartLists: true, // 优化列表输出
+      smartypants: true // 优化标点符号
+    });
+
+    // 将文本转换为 Markdown HTML
+    const htmlContent = marked.parse(summary);
+    
+    // 添加 markdown-body 类并设置 HTML 内容
+    this.summaryElement.className = 'summary markdown-body';
+    this.summaryElement.innerHTML = htmlContent;
+    
     this.resultElement.classList.remove('hidden');
   }
 

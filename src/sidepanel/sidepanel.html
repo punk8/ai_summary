@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="../../assets/css/sidepanel.css">
+  <link rel="stylesheet" href="../../assets/css/markdown.css">
 </head>
 <body>
   <div class="container">
@@ -24,7 +25,7 @@
       </div>
 
       <div id="result" class="result hidden">
-        <div id="summary" class="summary"></div>
+        <div id="summary" class="summary markdown-body"></div>
         <div class="toolbar">
           <button id="copy" class="tool-button">
             <svg viewBox="0 0 24 24" width="20" height="20">
@@ -51,6 +52,8 @@
 
   <!-- 首先加载 Readability -->
   <script src="../../lib/readability.js"></script>
+   <!-- 按正确的顺序加载脚本 -->
+   <script src="../../lib/marked.min.js"></script>
   <!-- 然后加载其他脚本 -->
   <script src="../services/index.js"></script>
   <script src="../services/models/openai.js"></script>
